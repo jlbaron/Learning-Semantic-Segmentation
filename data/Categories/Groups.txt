@@ -1,0 +1,6 @@
+Class Rarely Or Never Used:   Other Material, DisturbeView, VesselLinked, SolidLargChunk, PropertiesMaterialInFront, Other Material, 
+Vessel Type Class:   Vessel, Syringe, Pippete, Tube, IVBag, DripChamber, IVBottle, Beaker, RoundFlask, Cylinder, SeparatoryFunnel, Funnel, Burete, ChromatographyColumn, Condenser, Bottle, Jar, Connector, Flask, Cup, Bowl, Erlenmeyer, Vial, Dish, HeatingVessel, Tube, 
+Vessel Proprties Class:   Transparent, SemiTrans, Opaque, DisturbeView, VesselInsideVessel, 
+Vessel Part Class:   Cork, Label, Part, Spike, Valve, MagneticStirer, Thermometer, Spatula, Holder, Filter, PipeTubeStraw, 
+Material Property Class:   MaterialOnSurface, MaterialScattered, PropertiesMaterialInsideImmersed, PropertiesMaterialInFront, 
+Material Type Class:   Liquid, Foam, Suspension, Solid, Powder, Urine, Blood, Gel, Granular, SolidLargChunk, Vapor, Other Material, Filled, 

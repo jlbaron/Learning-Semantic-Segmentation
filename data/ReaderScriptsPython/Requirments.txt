@@ -1,0 +1,2 @@
+Code Run on Anacodnda Python 3.6 with OPENCV 3 
+See enviroment.yml for dependecies

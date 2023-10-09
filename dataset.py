@@ -11,6 +11,7 @@ waiting for download......
 import os
 from torchvision.io import read_image
 from torch.utils.data import Dataset
+import matplotlib.pyplot as plt
 
 
 class SemanticSegmentationDataset(Dataset):
@@ -31,5 +32,23 @@ class SemanticSegmentationDataset(Dataset):
         return image, maps
     
 # view one sample at index
-def view_sample():
-    pass
+def view_sample(idx=0, dataset='Train'):
+    data_dir = f"data/{dataset}/{idx+1}{dataset}"
+    image = read_image(f"{data_dir}/Image.jpg")
+    # add each image to the larger plot
+    # plt.imshow(image.permute(1,2,0))
+
+    ignore = read_image(f"{data_dir}/Ignore.png")
+    # all regions where ignore > 0 should be set to 0 in image
+
+    maps = []
+    for map in os.listdir(f"{data_dir}/SemanticMaps/FullImage/"):
+        maps.append(read_image(map))
+
+    
+    plt.imshow(image.permute(1,2,0))
+
+    # show full plot of images
+    plt.show()
+
+view_sample(0)

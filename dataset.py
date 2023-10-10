@@ -12,7 +12,7 @@ import os
 from torchvision.io import read_image
 from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
-
+import torch
 
 class SemanticSegmentationDataset(Dataset):
     def __init__(self, img_dir):
@@ -34,21 +34,40 @@ class SemanticSegmentationDataset(Dataset):
 # view one sample at index
 def view_sample(idx=0, dataset='Train'):
     data_dir = f"data/{dataset}/{idx+1}{dataset}"
+    maps = os.listdir(f"{data_dir}/SemanticMaps/FullImage/")
+    num_images = len(maps) + 2  # +2 for the base and masked images
+
+    fig = plt.figure(figsize=(8, 8 * num_images))
+
+    plt.subplot(2, 1, 1)
+    plt.axis("off")
+    plt.title("Base Image")
     image = read_image(f"{data_dir}/Image.jpg")
-    # add each image to the larger plot
-    # plt.imshow(image.permute(1,2,0))
-
-    ignore = read_image(f"{data_dir}/Ignore.png")
-    # all regions where ignore > 0 should be set to 0 in image
-
-    maps = []
-    for map in os.listdir(f"{data_dir}/SemanticMaps/FullImage/"):
-        maps.append(read_image(map))
-
-    
     plt.imshow(image.permute(1,2,0))
+
+    plt.subplot(2, 1, 2)
+    plt.axis("off")
+    plt.title("Masked Image")
+    ignore = read_image(f"{data_dir}/Ignore.png")
+    ignore = ignore.squeeze(0)
+    ignore_im = image.clone()
+    ignore_im[0][ignore>0] = 0
+    ignore_im[1][ignore>0] = 0
+    ignore_im[2][ignore>0] = 0
+    plt.imshow(ignore_im.permute(1,2,0))
+
+    for i, map in enumerate(maps, start=3):
+        temp_image = ignore_im.clone()
+        plt.subplot(num_images, 2, i)
+        plt.axis("off")
+        plt.title(map)
+        mask = read_image(f"{data_dir}/SemanticMaps/FullImage/{map}")
+        mask = mask[0] > 0
+        temp_image[0][mask] = 0
+        temp_image[1][mask] = 0
+        plt.imshow(temp_image.permute(1,2,0))
 
     # show full plot of images
     plt.show()
 
-view_sample(0)
+view_sample(1)

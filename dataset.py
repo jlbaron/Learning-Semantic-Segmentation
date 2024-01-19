@@ -15,9 +15,10 @@ import matplotlib.pyplot as plt
 import torch
 
 class SemanticSegmentationDataset(Dataset):
-    def __init__(self, img_dir):
+    def __init__(self, img_dir, categories=['Vessel']):
         self.img_dir = "data/"+img_dir
         self.length = len(os.listdir("data/"+img_dir))
+        self.categories = categories
 
     def __len__(self):
         return self.length
@@ -28,7 +29,8 @@ class SemanticSegmentationDataset(Dataset):
         ignore = read_image(folder_path+"/Ignore.png")
         maps = []
         for map in os.listdir(self.img_dir+"/SemanticMaps/FullImage/"):
-            maps.append(read_image(map))
+            if map in self.categories:
+                maps.append(read_image(map))
         return image, maps
     
 # view one sample at index
@@ -37,37 +39,43 @@ def view_sample(idx=0, dataset='Train'):
     maps = os.listdir(f"{data_dir}/SemanticMaps/FullImage/")
     num_images = len(maps) + 2  # +2 for the base and masked images
 
-    fig = plt.figure(figsize=(8, 8 * num_images))
+    # Calculate the number of rows required, assuming 2 columns for base and masked images
+    num_rows = (num_images + 1) // 2  # +1 to handle odd number of images
 
-    plt.subplot(2, 1, 1)
-    plt.axis("off")
-    plt.title("Base Image")
+    fig, axs = plt.subplots(num_rows, 2, figsize=(10, 5 * num_rows))  # Adjust the figure size as needed
+    axs = axs.ravel()
+
+    # Base Image
+    axs[0].axis("off")
+    axs[0].set_title("Base Image", color='white')
     image = read_image(f"{data_dir}/Image.jpg")
-    plt.imshow(image.permute(1,2,0))
+    axs[0].imshow(image.permute(1, 2, 0))
 
-    plt.subplot(2, 1, 2)
-    plt.axis("off")
-    plt.title("Masked Image")
+    # Masked Image
+    axs[1].axis("off")
+    axs[1].set_title("Masked Image", color='white')
     ignore = read_image(f"{data_dir}/Ignore.png")
     ignore = ignore.squeeze(0)
     ignore_im = image.clone()
-    ignore_im[0][ignore>0] = 0
-    ignore_im[1][ignore>0] = 0
-    ignore_im[2][ignore>0] = 0
-    plt.imshow(ignore_im.permute(1,2,0))
+    ignore_im[0][ignore > 0] = 0
+    ignore_im[1][ignore > 0] = 0
+    ignore_im[2][ignore > 0] = 0
+    axs[1].imshow(ignore_im.permute(1, 2, 0))
 
-    for i, map in enumerate(maps, start=3):
+    # Semantic Maps
+    for i, map in enumerate(maps, start=2):
         temp_image = ignore_im.clone()
-        plt.subplot(num_images, 2, i)
-        plt.axis("off")
-        plt.title(map)
+        axs[i].axis("off")
+        axs[i].set_title(map, color='white')
         mask = read_image(f"{data_dir}/SemanticMaps/FullImage/{map}")
         mask = mask[0] > 0
         temp_image[0][mask] = 0
         temp_image[1][mask] = 0
-        plt.imshow(temp_image.permute(1,2,0))
+        axs[i].imshow(temp_image.permute(1, 2, 0))
 
-    # show full plot of images
+    # Adjust layout for better spacing
+    plt.tight_layout()
     plt.show()
 
-view_sample(1)
+# Call the function with your sample index
+view_sample(41)

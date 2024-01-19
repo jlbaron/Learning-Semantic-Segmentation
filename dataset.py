@@ -23,6 +23,7 @@ class SemanticSegmentationDataset(Dataset):
     def __len__(self):
         return self.length
 
+    # TODO: normalize and preprocess images
     def __getitem__(self, idx):
         folder_path = self.img_dir + str(idx+1)
         image = read_image(folder_path+"/Image.png")

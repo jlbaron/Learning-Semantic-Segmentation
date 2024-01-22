@@ -5,6 +5,7 @@ downsample with conv, relu, and max pool
 upsample with transpose conv
 
 Used code from: https://nn.labml.ai/unet/index.html
+I also formatted the images to be the same size so nothing changes
 '''
 
 import torch
@@ -30,9 +31,9 @@ class DoubleConvolution(nn.Module):
 
 # max pool to reduce size
 class DownSample(nn.Module):
-    def __init__(self, kernel_size: int):
+    def __init__(self):
         super().__init__()
-        self.pool = nn.MaxPool2d(kernel_size)
+        self.pool = nn.MaxPool2d(2)
 
     def forward(self, x: torch.Tensor):
         return self.pool(x)
@@ -87,7 +88,3 @@ class UNet(nn.Module):
 
         x = self.final_conv(x)
         return x
-
-# Usage:
-# Create the model with input and output channels
-model = UNet(in_channels=3, out_channels=1)  # Adjust input and output channels accordingly

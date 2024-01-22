@@ -9,12 +9,13 @@ waiting for download......
 # map blue channel > 0
 
 import os
-from torchvision.io import read_image
-from torchvision.transforms import Compose, Resize, Normalize
+from torchvision.io import read_image, ImageReadMode
+from torchvision.transforms import Compose, Resize, Normalize, Lambda, Pad
 from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
+from PIL import ImageOps
 
 class SemanticSegmentationDataset(Dataset):
     def __init__(self, img_dir, categories=['Vessel']):
@@ -23,21 +24,35 @@ class SemanticSegmentationDataset(Dataset):
         self.length = len(self.image_paths)
         self.categories = categories
         self.transform = Compose([
-            Resize((512, 512)),  # Resize images to a fixed size
+            Lambda(lambda img: self.resize_and_maybe_pad(img, 572)),
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize with ImageNet stats
         ])
+
+    def resize_and_maybe_pad(self, img, target_size):
+        # Resize the image
+        img = Resize((target_size, target_size))(img)
+
+        # Check if padding is needed
+        pad_width = max(target_size - img.shape[1], 0)
+        pad_height = max(target_size - img.shape[2], 0)
+        if pad_width > 0 or pad_height > 0:
+            # Calculate padding for left, top, right, bottom
+            padding = (pad_width // 2, pad_height // 2, pad_width - (pad_width // 2), pad_height - (pad_height // 2))
+            img = Pad(padding)(img)
+
+        return img
 
     def __len__(self):
         return self.length
 
-    # TODO: normalize and preprocess images
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
-        image = read_image(image_path+"/Image.jpg").to(torch.float)
+        image = read_image(image_path+"/Image.jpg", ImageReadMode.RGB).to(torch.float)
         image = self.transform(image)
-        
-        maps = []
+        print(idx, image.shape)
 
+
+        maps = torch.Tensor()
         # Assuming each image folder contains a 'SemanticMaps/FullImage' directory with semantic maps
         maps_dir = os.path.join(image_path, "SemanticMaps", "FullImage")
         if not os.path.exists(maps_dir):
@@ -51,11 +66,12 @@ class SemanticSegmentationDataset(Dataset):
                 if category in available_categories:
                     map_path = os.path.join(maps_dir, map_files[map_ctr])
                     semantic_map = read_image(map_path).to(torch.float)
-                    semantic_map = self.transform(semantic_map)[0].unsqueeze(0).long()
-                    maps.append(semantic_map)
+                    semantic_map = self.transform(semantic_map)
+                    maps = torch.concat([maps, semantic_map])
                     map_ctr += 1
                 else:
-                    maps.append(torch.zeros_like(image))
+                    maps = torch.concat([maps, torch.zeros((1, 572, 572))])
+                print(maps.shape)
 
         # Optionally, handle the 'Ignore' mask here if needed
 
@@ -146,10 +162,12 @@ def plot_sample(dataset, idx, categories, columns=4):
     plt.tight_layout()
     plt.show()
 
+# Test code to visually verify dataset
+# import random
 # categories = ["Cork", "Label", "Part", "Spike", "Valve", "MagneticStirer", "Thermometer", "Spatula", "Holder", "Filter", "PipeTubeStraw"]
 # dataset = SemanticSegmentationDataset(
 #     img_dir='Train',
 #     categories=categories
 # )
-# for i in range(12):
-#     plot_sample(dataset, i*10, categories)
+# for i in range(10):
+#     plot_sample(dataset, random.randint(1, 5000), categories)

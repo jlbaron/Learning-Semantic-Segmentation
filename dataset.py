@@ -15,16 +15,18 @@ from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
-from PIL import ImageOps
+
+IMAGE_SIZE = 512
 
 class SemanticSegmentationDataset(Dataset):
     def __init__(self, img_dir, categories=['Vessel']):
         image_path = os.path.join('data', img_dir)
-        self.image_paths = [os.path.join(image_path, str(i+1) + img_dir) for i in range(len(os.listdir(image_path)))]
+        single_entry_dir = img_dir if img_dir == 'Train' else 'Eval'
+        self.image_paths = [os.path.join(image_path, str(i+1) + single_entry_dir) for i in range(len(os.listdir(image_path)))]
         self.length = len(self.image_paths)
         self.categories = categories
         self.transform = Compose([
-            Lambda(lambda img: self.resize_and_maybe_pad(img, 572)),
+            Lambda(lambda img: self.resize_and_maybe_pad(img, IMAGE_SIZE)),
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize with ImageNet stats
         ])
 
@@ -49,33 +51,26 @@ class SemanticSegmentationDataset(Dataset):
         image_path = self.image_paths[idx]
         image = read_image(image_path+"/Image.jpg", ImageReadMode.RGB).to(torch.float)
         image = self.transform(image)
-        print(idx, image.shape)
 
 
-        maps = torch.Tensor()
+        mask = torch.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=torch.long)
+
         # Assuming each image folder contains a 'SemanticMaps/FullImage' directory with semantic maps
         maps_dir = os.path.join(image_path, "SemanticMaps", "FullImage")
         if not os.path.exists(maps_dir):
             raise FileNotFoundError(f"Semantic maps directory not found for index {idx}")
         
         available_categories = [os.path.splitext(map_file)[0] for map_file in os.listdir(maps_dir)]
-        map_files = os.listdir(maps_dir)
-        map_ctr = 0
-        for category in self.categories:
-                # Check if the file name without the extension is in the list of categories
-                if category in available_categories:
-                    map_path = os.path.join(maps_dir, map_files[map_ctr])
-                    semantic_map = read_image(map_path).to(torch.float)
-                    semantic_map = self.transform(semantic_map)
-                    maps = torch.concat([maps, semantic_map])
-                    map_ctr += 1
-                else:
-                    maps = torch.concat([maps, torch.zeros((1, 572, 572))])
-                print(maps.shape)
+        for i, category in enumerate(self.categories):
+            if category in available_categories:
+                map_path = os.path.join(maps_dir, category + ".png")  # assuming the file format is .png
+                semantic_map = read_image(map_path, ImageReadMode.GRAY)  # convert to grayscale
+                semantic_map = self.resize_and_maybe_pad(semantic_map, IMAGE_SIZE).squeeze(0)
 
-        # Optionally, handle the 'Ignore' mask here if needed
+                # Update the mask; for pixels in semantic_map with value > 0, set them to the category index
+                mask[semantic_map > 0] = i + 1  # +1 if you want to reserve 0 for background
 
-        return image, maps
+        return image, mask
     
 
     

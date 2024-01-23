@@ -6,7 +6,7 @@ Data: LabPicsChemistry
 Model: U-NET
 
 <h1> Progress </h1>
-<p> Combed through dataset and learned how to access semantic maps. Working on dataloader code next. Dataloader will only include a specific list of categories to keep things orderly and easy to run on my laptop. Next steps are to debug the UNET and complete the main.ipynb functions</p>
+<p> Combed through dataset and learned how to access semantic maps. Completed dataloader, unet, and training loop. Began training and tuning network hyperparameters. Next steps are per pixel accuracy and testing different loss functions </p>
 
 
 <h2> citations </h2>
@@ -23,4 +23,7 @@ BibTeX for data source:
   doi          = {10.5281/zenodo.4736111},
   url          = {https://doi.org/10.5281/zenodo.4736111}
 }
+</p>
+<p>
+~UNET citation~
 </p>

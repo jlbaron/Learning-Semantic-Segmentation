@@ -1,15 +1,18 @@
+import os
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import matplotlib.pyplot as plt
 from dataset import SemanticSegmentationDataset
 from models.unet import UNet
 
 # define hyperparameters
 hyperparameters = {}
+hyperparameters['model_name'] = 'test'
 hyperparameters['lr'] = 1e-3
-hyperparameters['batch_size'] = 2
-hyperparameters['epochs'] = 100
+hyperparameters['batch_size'] = 32
+hyperparameters['epochs'] = 2
 hyperparameters['loss'] = 'CE'
 # hyperparameters['loss'] = 'Focal'
 # hyperparameters['loss'] = 'Dice'
@@ -27,12 +30,36 @@ categories["Material Property Class"] = ["MaterialOnSurface", "MaterialScattered
 categories["Material Type Class"] =  ["Liquid", "Foam", "Suspension", "Solid", "Powder", "Urine", "Blood", "Gel", "Granular", "SolidLargChunk", "Vapor", "Other Material", "Filled"]
 categories_set = "Vessel Part Class"
 
+# dice loss option
+def dice_loss(input, target, epsilon=1e-6):
+    '''
+    Dice coefficient is 2*intersection / union+intersection
+        where intersection is input*target
+        where union is target*target
+    
+    Dice loss is 1 - dice coefficient
+    '''
+
+    input = nn.flatten(input)
+    target = nn.flatten(target)
+
+    # compute per channel Dice Coefficient
+    intersect = (input * target).sum(-1)
+
+    denominator = (input * input).sum(-1) + (target * target).sum(-1)
+    dice_coefficient = 2 * (intersect / denominator.clamp(min=epsilon))
+
+    return 1. - torch.mean(dice_coefficient)
+
+# combination of dice and ce loss
+def combo_loss(input, target):
+    return nn.CrossEntropyLoss()(input, target)*0.5 + dice_loss(input, target)*0.5
 
 # data set
-train_data = SemanticSegmentationDataset('train', categories=categories[categories_set])
-test_data = SemanticSegmentationDataset('test', categories=categories[categories_set])
+train_data = SemanticSegmentationDataset('Train', categories=categories[categories_set])
+test_data = SemanticSegmentationDataset('Test', categories=categories[categories_set])
 
-train_loader = DataLoader(train_data, batch_size=hyperparameters['batch_size'])
+train_loader = DataLoader(train_data, batch_size=hyperparameters['batch_size'], shuffle=True)
 test_loader = DataLoader(test_data, batch_size=hyperparameters['batch_size'])
 
 
@@ -41,7 +68,15 @@ test_loader = DataLoader(test_data, batch_size=hyperparameters['batch_size'])
 model = UNet(in_channels=3, out_channels=len(categories[categories_set]))
 
 optimizer = optim.Adam(model.parameters(), lr=hyperparameters['lr'])
-criterion = nn.CrossEntropyLoss()
+
+# TODO: obtain class weights
+if hyperparameters['loss'] == 'CE':
+    criterion = nn.CrossEntropyLoss()
+elif hyperparameters['loss'] == 'Dice':
+    criterion = dice_loss
+elif hyperparameters['loss'] == 'Combo':
+    criterion = combo_loss
+
 
 
 # one full pass of the shuffled data set with weight updates
@@ -50,11 +85,6 @@ def train():
     total_loss = 0.
 
     for idx, (image, semantic_maps) in enumerate(train_loader):
-        # TODO: doublecheck the handling of base and label samples for correct loss calculation
-        print(len(categories[categories_set]))
-        print(image.shape, semantic_maps.shape)
-        assert(0)
-
         model_output = model(image)
 
         optimizer.zero_grad()
@@ -75,7 +105,6 @@ def evaluate():
 
     with torch.no_grad():
         for idx, (image, semantic_maps) in enumerate(test_loader):
-            # TODO: doublecheck the handling of base and label samples for correct loss calculation
             model_output = model(image)
 
             loss = criterion(model_output, semantic_maps)
@@ -85,7 +114,33 @@ def evaluate():
 
 
 # main loop
+train_losses, test_losses = [], []
 for e in range(hyperparameters['epochs']):
     train_loss, avg_train_loss = train()
     test_loss, avg_test_loss = evaluate()
     print("Epoch %d Training Loss: %.4f. Validation Loss: %.4f. " % (e, avg_train_loss, avg_test_loss))
+    # Save the trained model
+    model_path = os.path.join('checkpoints', f"{hyperparameters['model_name']}_trained.pt")
+    torch.save(model.state_dict(), model_path)
+    print(f"Trained model saved to '{model_path}'.")
+    train_losses.append(avg_train_loss)
+    test_losses.append(avg_test_loss)
+
+
+# Plots
+plt.plot(train_losses, label="Training Loss")
+plt.plot(test_losses, label="Test Loss")
+plt.title("Training and Testing Loss")
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
+plt.savefig("visualizations\\training_curves\\loss.png")
+plt.show()
+# plt.plot(train_accuracies, label="Training Accuracies")
+# plt.plot(val_accuracies, label="Validation Accuracies")
+# plt.title("Training and Validation Accuracy")
+# plt.xlabel("Epochs")
+# plt.ylabel("Loss")
+# plt.savefig("figures\\acc.png")
+# plt.show()
+
+# TODO: implement per pixel accuracy

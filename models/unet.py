@@ -15,12 +15,12 @@ import torchvision
 
 # 2 convolution layers with relu
 class DoubleConvolution(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(self, in_channels: int, out_channels: int, device='cpu'):
         super().__init__()
-        self.first = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.first = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, device=device)
         self.act1 = nn.ReLU()
 
-        self.second = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.second = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, device=device)
         self.act2 = nn.ReLU()
 
     def forward(self, x: torch.Tensor):
@@ -40,9 +40,9 @@ class DownSample(nn.Module):
 
 # transpose conv to increase size
 class UpSample(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(self, in_channels: int, out_channels: int, device='cpu'):
         super().__init__()
-        self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2, device=device)
 
     def forward(self, x: torch.Tensor):
         return self.up(x)
@@ -54,22 +54,23 @@ class CropAndConcat(nn.Module):
         x = torch.cat([x, contracting_x], dim=1)
         return x
 
-# TODO: untested, need to adapt for dataset
+# UNet downsamples from 512,512 to 35,35 then back up to original 512, 512
+# output as many filters as classes to label
 class UNet(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(self, in_channels: int, out_channels: int, device='cpu'):
         super().__init__()
 
-        self.down_conv = nn.ModuleList([DoubleConvolution(i, o) for i, o in
+        self.down_conv = nn.ModuleList([DoubleConvolution(i, o, device) for i, o in
                                         [(in_channels, 64), (64, 128), (128, 256), (256, 512)]])
         self.down_sample = nn.ModuleList([DownSample() for _ in range(4)])
-        self.middle_conv = DoubleConvolution(512, 1024)
-        self.up_sample = nn.ModuleList([UpSample(i, o) for i, o in
+        self.middle_conv = DoubleConvolution(512, 1024, device)
+        self.up_sample = nn.ModuleList([UpSample(i, o, device) for i, o in
                                         [(1024, 512), (512, 256), (256, 128), (128, 64)]])
 
-        self.up_conv = nn.ModuleList([DoubleConvolution(i, o) for i, o in
+        self.up_conv = nn.ModuleList([DoubleConvolution(i, o, device) for i, o in
                                      [(1024, 512), (512, 256), (256, 128), (128, 64)]])
         self.concat = nn.ModuleList([CropAndConcat() for _ in range(4)])
-        self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1, device=device)
 
     def forward(self, x: torch.Tensor):
         pass_through = []

@@ -11,8 +11,8 @@ from models.unet import UNet
 hyperparameters = {}
 hyperparameters['model_name'] = 'test'
 hyperparameters['lr'] = 1e-3
-hyperparameters['batch_size'] = 32
-hyperparameters['epochs'] = 2
+hyperparameters['batch_size'] = 5
+hyperparameters['epochs'] = 10
 hyperparameters['loss'] = 'CE'
 # hyperparameters['loss'] = 'Focal'
 # hyperparameters['loss'] = 'Dice'
@@ -30,6 +30,10 @@ categories["Material Property Class"] = ["MaterialOnSurface", "MaterialScattered
 categories["Material Type Class"] =  ["Liquid", "Foam", "Suspension", "Solid", "Powder", "Urine", "Blood", "Gel", "Granular", "SolidLargChunk", "Vapor", "Other Material", "Filled"]
 categories_set = "Vessel Part Class"
 
+# device management, this task should ideally be done on gpu
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+print(device)
+
 # dice loss option
 def dice_loss(input, target, epsilon=1e-6):
     '''
@@ -39,9 +43,8 @@ def dice_loss(input, target, epsilon=1e-6):
     
     Dice loss is 1 - dice coefficient
     '''
-
-    input = nn.flatten(input)
-    target = nn.flatten(target)
+    input =  torch.flatten(input)
+    target = torch.flatten(target)
 
     # compute per channel Dice Coefficient
     intersect = (input * target).sum(-1)
@@ -59,17 +62,17 @@ def combo_loss(input, target):
 train_data = SemanticSegmentationDataset('Train', categories=categories[categories_set])
 test_data = SemanticSegmentationDataset('Test', categories=categories[categories_set])
 
-train_loader = DataLoader(train_data, batch_size=hyperparameters['batch_size'], shuffle=True)
-test_loader = DataLoader(test_data, batch_size=hyperparameters['batch_size'])
+train_loader = DataLoader(train_data, batch_size=hyperparameters['batch_size'], shuffle=True)#, num_workers=2, pin_memory=True)
+test_loader = DataLoader(test_data, batch_size=hyperparameters['batch_size'])#, num_workers=2, pin_memory=True)
 
 
 # init model and opt
 # out channels == num classes
-model = UNet(in_channels=3, out_channels=len(categories[categories_set]))
+model = UNet(in_channels=3, out_channels=len(categories[categories_set]), device=device)
 
 optimizer = optim.Adam(model.parameters(), lr=hyperparameters['lr'])
 
-# TODO: obtain class weights
+# TODO: obtain class weights for focal loss
 if hyperparameters['loss'] == 'CE':
     criterion = nn.CrossEntropyLoss()
 elif hyperparameters['loss'] == 'Dice':
@@ -85,7 +88,8 @@ def train():
     total_loss = 0.
 
     for idx, (image, semantic_maps) in enumerate(train_loader):
-        model_output = model(image)
+        model_output = model(image.to(device))
+        semantic_maps = semantic_maps.to(device)
 
         optimizer.zero_grad()
         loss = criterion(model_output, semantic_maps)
@@ -94,6 +98,7 @@ def train():
         optimizer.step()
 
         total_loss += loss.item()
+        print(f"Train iter: {idx},  Loss: {total_loss}")
     
     return total_loss, total_loss / len(train_loader)
 
@@ -105,12 +110,13 @@ def evaluate():
 
     with torch.no_grad():
         for idx, (image, semantic_maps) in enumerate(test_loader):
-            model_output = model(image)
+            model_output = model(image.to(device))
 
-            loss = criterion(model_output, semantic_maps)
+            loss = criterion(model_output, semantic_maps.to(device))
             total_loss += loss.item()
     
     return total_loss, total_loss / len(train_loader)
+
 
 
 # main loop
